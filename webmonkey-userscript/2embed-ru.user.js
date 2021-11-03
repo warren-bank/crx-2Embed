@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2embed.ru
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.0
+// @version      1.0.1
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -59,6 +59,12 @@ var download_json = function(url, headers, callback) {
   })
 }
 
+// -----------------------------------------------------------------------------
+
+var cancel_event = function(event){
+  event.stopPropagation();event.stopImmediatePropagation();event.preventDefault();event.returnValue=false;
+}
+
 // ----------------------------------------------------------------------------- URL redirect
 
 var redirect_to_url = function(url) {
@@ -80,7 +86,7 @@ var redirect_to_url = function(url) {
   }
 }
 
-// -----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------- rewrite page content
 
 var rewrite_dom = function() {
   var servers, $body, $select, $iframe, html, server_id, server_name
@@ -109,7 +115,7 @@ var rewrite_dom = function() {
   $select.innerHTML = html.join("\n")
 
   $select.addEventListener('change', function(event){
-    event.stopPropagation();event.stopImmediatePropagation();event.preventDefault();event.returnValue=false;
+    cancel_event(event)
 
     var xhr_url, video_host_url, sites_to_open_in_top_window_regex
 
@@ -136,8 +142,37 @@ var rewrite_dom = function() {
   })
 }
 
+// ----------------------------------------------------------------------------- bootstrap
+
+var clear_all_timeouts = function() {
+  var maxId = unsafeWindow.setTimeout(function(){}, 1000)
+
+  for (var i=0; i <= maxId; i++) {
+    unsafeWindow.clearTimeout(i)
+  }
+}
+
+var clear_all_intervals = function() {
+  var maxId = unsafeWindow.setInterval(function(){}, 1000)
+
+  for (var i=0; i <= maxId; i++) {
+    unsafeWindow.clearInterval(i)
+  }
+}
+
+var override_hooks = function() {
+  //unsafeWindow.onbeforeunload = cancel_event
+}
+
+var init = function() {
+  rewrite_dom()
+  clear_all_timeouts()
+  clear_all_intervals()
+  override_hooks()
+}
+
 unsafeWindow.setTimeout(
-  rewrite_dom,
+  init,
   user_options.script_init_delay
 )
 
