@@ -1,0 +1,35 @@
+--------------------------------------------------------------------------------
+
+https://www.2embed.ru/
+
+API URL query format:
+  https://www.2embed.ru/embed/imdb/movie?id=IMDB ID
+  https://www.2embed.ru/embed/imdb/tv?id=IMDB ID&s=SEASON NUMBER&e=EPISODE NUMBER
+
+--------------------------------------------------------------------------------
+
+https://www.imdb.com/title/tt4051832/
+  Lovesick
+
+https://www.2embed.ru/embed/imdb/tv?id=tt4051832&s=1&e=1
+
+found in DOM:
+=============
+  <div class="dropdown-menu dropdown-menu-model">
+      <a class="dropdown-item item-server" href="javascript:;" data-id="2496523">Server Vidcloud</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="1005264">Server Upstream</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="2239892">Server Hydrax</a>
+  </div>
+
+--------------------------------------------------------------------------------
+
+https://www.2embed.ru/ajax/embed/play?id=2496523&_token=
+  {"type":"iframe","link":"https://streamrapid.ru/embed-5/1wH0qkHbygZp?z=","sources":[],"tracks":[]}
+
+https://www.2embed.ru/ajax/embed/play?id=1005264&_token=
+  {"type":"iframe","link":"https://upstream.to/embed-nfknn582q4zs.html","sources":[],"tracks":[]}
+
+https://www.2embed.ru/ajax/embed/play?id=2239892&_token=
+  {"type":"iframe","link":"https://embed2.megaxfer.ru/embed2/9879febc237256bd5a48a41fefe1dae9","sources":[],"tracks":[]}
+
+--------------------------------------------------------------------------------
