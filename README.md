@@ -1,6 +1,6 @@
-### [2embed.ru](https://github.com/warren-bank/crx-2embed-ru/tree/webmonkey-userscript/es5)
+### [2Embed](https://github.com/warren-bank/crx-2Embed/tree/webmonkey-userscript/es5)
 
-[Userscript](https://github.com/warren-bank/crx-2embed-ru/raw/webmonkey-userscript/es5/webmonkey-userscript/2embed-ru.user.js) to run in both:
+[Userscript](https://github.com/warren-bank/crx-2Embed/raw/webmonkey-userscript/es5/webmonkey-userscript/2Embed.user.js) to run in both:
 * the [WebMonkey](https://github.com/warren-bank/Android-WebMonkey) application for Android
 * the [Tampermonkey](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) web browser extension for Chrome/Chromium
 

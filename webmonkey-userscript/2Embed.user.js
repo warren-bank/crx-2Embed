@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         2embed.ru
+// @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
 // @version      1.0.1
 // @match        *://2embed.ru/*
@@ -7,10 +7,10 @@
 // @icon         https://www.2embed.ru/images/favicon.png
 // @run-at       document-end
 // @grant        unsafeWindow
-// @homepage     https://github.com/warren-bank/crx-2embed-ru/tree/webmonkey-userscript/es5
-// @supportURL   https://github.com/warren-bank/crx-2embed-ru/issues
-// @downloadURL  https://github.com/warren-bank/crx-2embed-ru/raw/webmonkey-userscript/es5/webmonkey-userscript/2embed-ru.user.js
-// @updateURL    https://github.com/warren-bank/crx-2embed-ru/raw/webmonkey-userscript/es5/webmonkey-userscript/2embed-ru.user.js
+// @homepage     https://github.com/warren-bank/crx-2Embed/tree/webmonkey-userscript/es5
+// @supportURL   https://github.com/warren-bank/crx-2Embed/issues
+// @downloadURL  https://github.com/warren-bank/crx-2Embed/raw/webmonkey-userscript/es5/webmonkey-userscript/2Embed.user.js
+// @updateURL    https://github.com/warren-bank/crx-2Embed/raw/webmonkey-userscript/es5/webmonkey-userscript/2Embed.user.js
 // @namespace    warren-bank
 // @author       Warren Bank
 // @copyright    Warren Bank
