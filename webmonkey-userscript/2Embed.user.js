@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.1
+// @version      1.0.2
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -129,14 +129,16 @@ var rewrite_dom = function() {
       if (data && (typeof data === 'object') && data.link) {
         video_host_url = data.link
 
-        sites_to_open_in_top_window_regex = /(?:upstream\.to)\//i
+        if (typeof GM_loadUrl === 'function') {
+          sites_to_open_in_top_window_regex = /(?:vidcloud\.co|streamrapid\.ru|upstream\.to)\//i
 
-        if (sites_to_open_in_top_window_regex.test(video_host_url)) {
-          redirect_to_url(video_host_url)
+          if (sites_to_open_in_top_window_regex.test(video_host_url)) {
+            redirect_to_url(video_host_url)
+            return
+          }
         }
-        else {
-          $iframe.setAttribute('src', video_host_url)
-        }
+
+        $iframe.setAttribute('src', video_host_url)
       }
     })
   })
