@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.2
+// @version      1.0.3
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -89,20 +89,23 @@ var redirect_to_url = function(url) {
 // ----------------------------------------------------------------------------- rewrite page content
 
 var rewrite_dom = function() {
-  var servers, $body, $select, $iframe, html, server_id, server_name
+  var servers, use_iframe, $body, $select, $iframe, html, server_id, server_name
 
   servers = unsafeWindow.document.querySelectorAll('a.dropdown-item.item-server[data-id]')
   if (!servers.length) return
 
+  use_iframe = (typeof GM_loadUrl !== 'function')
+
   unsafeWindow.document.close()
   unsafeWindow.document.open()
   unsafeWindow.document.write('<div><select></select></div>')
-  unsafeWindow.document.write('<div><iframe src="about:blank" width="100%" height="600" scrolling="no" frameborder="0" src="" allowFullScreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe></div>')
+  if (use_iframe)
+    unsafeWindow.document.write('<div><iframe src="about:blank" width="100%" height="600" scrolling="no" frameborder="0" src="" allowFullScreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe></div>')
   unsafeWindow.document.close()
 
   $body   = unsafeWindow.document.body
   $select = unsafeWindow.document.querySelector('select')
-  $iframe = unsafeWindow.document.querySelector('iframe')
+  $iframe = use_iframe ? unsafeWindow.document.querySelector('iframe') : null
 
   html = []
   html.push('<option value="">Choose Video Host:</option>')
@@ -116,8 +119,7 @@ var rewrite_dom = function() {
 
   $select.addEventListener('change', function(event){
     cancel_event(event)
-
-    var xhr_url, video_host_url, sites_to_open_in_top_window_regex
+    var xhr_url
 
     server_id     = $select.value
     $select.value = ''
@@ -126,19 +128,15 @@ var rewrite_dom = function() {
     xhr_url = 'https://www.2embed.ru/ajax/embed/play?_token=&id=' + server_id
 
     download_json(xhr_url, null, function(data){
+      var video_host_url
+
       if (data && (typeof data === 'object') && data.link) {
         video_host_url = data.link
 
-        if (typeof GM_loadUrl === 'function') {
-          sites_to_open_in_top_window_regex = /(?:vidcloud\.co|streamrapid\.ru|upstream\.to)\//i
-
-          if (sites_to_open_in_top_window_regex.test(video_host_url)) {
-            redirect_to_url(video_host_url)
-            return
-          }
-        }
-
-        $iframe.setAttribute('src', video_host_url)
+        if (use_iframe)
+          $iframe.setAttribute('src', video_host_url)
+        else
+          redirect_to_url(video_host_url)
       }
     })
   })

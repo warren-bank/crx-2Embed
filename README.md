@@ -8,9 +8,9 @@ Its purpose is to:
 * rewrite pages on the [_2embed.ru_](https://www.2embed.ru/) website
   - replace entire UI with a simple list of the available video hosts
   - when a video host in this list is clicked..
-    * for specific video hosts:
+    * in _WebMonkey_:
       - redirect the top window to a page on the website for chosen video host that contains a video player
-    * for all other video hosts:
+    * otherwise:
       - load this page in an iframe
 
 #### Legal:
