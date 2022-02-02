@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.4
+// @version      1.0.5
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -18,17 +18,11 @@
 
 // ----------------------------------------------------------------------------- constants
 
-var user_options = {
-  "script_init_delay": 500
-}
-
 var state = {
+  servers: [],
+
   recaptcha: {
-    site_key: null,
-    token: {
-      value:  null,
-      expiry: null
-    }
+    site_key: null
   }
 }
 
@@ -80,19 +74,10 @@ var cancel_event = function(event){
 var refresh_recaptcha_token = function(callback) {
   if (!state.recaptcha.site_key) return
   if (!unsafeWindow.grecaptcha)  return
-
-  if (state.recaptcha.token.value && state.recaptcha.token.expiry && (state.recaptcha.token.expiry > Date.now())) {
-    // current token is still valid
-
-    if (typeof callback === 'function') callback(state.recaptcha.token.value)
-    return
-  }
+  if (typeof callback !== 'function') return
 
   unsafeWindow.grecaptcha.execute(state.recaptcha.site_key, {action: 'submit'}).then(function(token) {
-    state.recaptcha.token.value  = token
-    state.recaptcha.token.expiry = Date.now() + 120000  // 120,000 ms = (2 mins)(60 secs/min)(1000 ms/sec)
-
-    if (typeof callback === 'function') callback(state.recaptcha.token.value)
+    callback(token)
   })
 }
 
@@ -120,45 +105,67 @@ var redirect_to_url = function(url) {
 // ----------------------------------------------------------------------------- extract required information from page content
 
 var scrape_dom = function() {
-  var script = unsafeWindow.document.querySelector('script[src^="https://www.google.com/recaptcha/api.js?render="]')
-  if (script)
-    state.recaptcha.site_key = script.getAttribute('src').replace(/^.*render=([^&]+).*$/, '$1')
+  state.recaptcha.site_key = unsafeWindow.document.body.getAttribute('data-recaptcha-key')
+
+  var $servers = unsafeWindow.document.querySelectorAll('a.dropdown-item.item-server[data-id]')
+  if ($servers.length) {
+    for (var i=0; i < $servers.length; i++) {
+      state.servers[i] = {
+        id:   $servers[i].getAttribute('data-id'),
+        name: $servers[i].innerHTML.trim()
+      }
+    }
+    $servers = null
+  }
 }
 
 // ----------------------------------------------------------------------------- rewrite page content
 
+var make_option = function(server) {
+  var $option
+  $option = unsafeWindow.document.createElement('option')
+  $option.setAttribute('value', server.id)
+  $option.appendChild(
+    unsafeWindow.document.createTextNode(server.name)
+  )
+  return $option
+}
+
 var rewrite_dom = function() {
-  var servers, html, use_iframe, $body, $select, $iframe, server_id, server_name
+  var $body, $div, $select, $iframe
+  var use_iframe
 
-  servers = unsafeWindow.document.querySelectorAll('a.dropdown-item.item-server[data-id]')
-  if (!servers.length) return
+  $body = unsafeWindow.document.body
 
-  html = []
-  if (state.recaptcha.site_key)
-    html.push('<script src="https://www.google.com/recaptcha/api.js?render=' + state.recaptcha.site_key + '"></script>')
-  html.push('<div><select></select></div>')
-  use_iframe = (typeof GM_loadUrl !== 'function')
-  if (use_iframe)
-    html.push('<div><iframe src="about:blank" width="100%" height="600" scrolling="no" frameborder="0" src="" allowFullScreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe></div>')
-
-  unsafeWindow.document.close()
-  unsafeWindow.document.open()
-  unsafeWindow.document.write(html.join("\n"))
-  unsafeWindow.document.close()
-
-  $body   = unsafeWindow.document.body
-  $select = unsafeWindow.document.querySelector('select')
-  $iframe = use_iframe ? unsafeWindow.document.querySelector('iframe') : null
-
-  html = []
-  html.push('<option value="">Choose Video Host:</option>')
-  for (var i=0; i < servers.length; i++) {
-    server_id   = servers[i].getAttribute('data-id')
-    server_name = servers[i].innerHTML.trim()
-
-    html.push('<option value="' + server_id + '">' + server_name + '</option>')
+  while($body.childNodes.length) {
+    $body.removeChild($body.childNodes[0])
   }
-  $select.innerHTML = html.join("\n")
+
+  $div    = unsafeWindow.document.createElement('div')
+  $select = unsafeWindow.document.createElement('select')
+  $div.appendChild($select)
+  $body.appendChild($div)
+
+  use_iframe = (typeof GM_loadUrl !== 'function')
+  if (use_iframe) {
+    $div    = unsafeWindow.document.createElement('div')
+    $iframe = unsafeWindow.document.createElement('iframe')
+    $iframe.setAttribute('src', 'about:blank')
+    $iframe.setAttribute('width', '100%')
+    $iframe.setAttribute('height', '600')
+    $iframe.setAttribute('scrolling', 'no')
+    $iframe.setAttribute('frameborder', '0')
+    $iframe.setAttribute('allowFullScreen', 'true')
+    $iframe.setAttribute('webkitallowfullscreen', 'true')
+    $iframe.setAttribute('mozallowfullscreen', 'true')
+    $div.appendChild($iframe)
+    $body.appendChild($div)
+  }
+
+  $select.appendChild(make_option({id: '', name: 'Choose Video Host:'}))
+  for (var i=0; i < state.servers.length; i++) {
+    $select.appendChild(make_option(state.servers[i]))
+  }
 
   $select.addEventListener('change', function(event){
     cancel_event(event)
@@ -166,8 +173,8 @@ var rewrite_dom = function() {
     refresh_recaptcha_token(function(token) {
       var xhr_url
 
-      server_id     = $select.value
-      $select.value = ''
+      server_id = $select.options[$select.selectedIndex].value
+      $select.selectedIndex = 0
       if (!server_id) return
 
       xhr_url = 'https://www.2embed.ru/ajax/embed/play?id=' + server_id + '&_token=' + token
@@ -185,7 +192,6 @@ var rewrite_dom = function() {
         }
       })
     })
-
   })
 }
 
@@ -213,16 +219,14 @@ var override_hooks = function() {
 
 var init = function() {
   scrape_dom()
+  if (!state.recaptcha.site_key || !state.servers.length) return
+
   rewrite_dom()
   clear_all_timeouts()
   clear_all_intervals()
   override_hooks()
-  refresh_recaptcha_token()
 }
 
-unsafeWindow.setTimeout(
-  init,
-  user_options.script_init_delay
-)
+init()
 
 // -----------------------------------------------------------------------------
