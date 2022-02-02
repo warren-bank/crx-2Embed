@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.3
+// @version      1.0.4
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -20,6 +20,16 @@
 
 var user_options = {
   "script_init_delay": 500
+}
+
+var state = {
+  recaptcha: {
+    site_key: null,
+    token: {
+      value:  null,
+      expiry: null
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------- helpers
@@ -65,6 +75,27 @@ var cancel_event = function(event){
   event.stopPropagation();event.stopImmediatePropagation();event.preventDefault();event.returnValue=false;
 }
 
+// -----------------------------------------------------------------------------
+
+var refresh_recaptcha_token = function(callback) {
+  if (!state.recaptcha.site_key) return
+  if (!unsafeWindow.grecaptcha)  return
+
+  if (state.recaptcha.token.value && state.recaptcha.token.expiry && (state.recaptcha.token.expiry > Date.now())) {
+    // current token is still valid
+
+    if (typeof callback === 'function') callback(state.recaptcha.token.value)
+    return
+  }
+
+  unsafeWindow.grecaptcha.execute(state.recaptcha.site_key, {action: 'submit'}).then(function(token) {
+    state.recaptcha.token.value  = token
+    state.recaptcha.token.expiry = Date.now() + 120000  // 120,000 ms = (2 mins)(60 secs/min)(1000 ms/sec)
+
+    if (typeof callback === 'function') callback(state.recaptcha.token.value)
+  })
+}
+
 // ----------------------------------------------------------------------------- URL redirect
 
 var redirect_to_url = function(url) {
@@ -86,21 +117,33 @@ var redirect_to_url = function(url) {
   }
 }
 
+// ----------------------------------------------------------------------------- extract required information from page content
+
+var scrape_dom = function() {
+  var script = unsafeWindow.document.querySelector('script[src^="https://www.google.com/recaptcha/api.js?render="]')
+  if (script)
+    state.recaptcha.site_key = script.getAttribute('src').replace(/^.*render=([^&]+).*$/, '$1')
+}
+
 // ----------------------------------------------------------------------------- rewrite page content
 
 var rewrite_dom = function() {
-  var servers, use_iframe, $body, $select, $iframe, html, server_id, server_name
+  var servers, html, use_iframe, $body, $select, $iframe, server_id, server_name
 
   servers = unsafeWindow.document.querySelectorAll('a.dropdown-item.item-server[data-id]')
   if (!servers.length) return
 
+  html = []
+  if (state.recaptcha.site_key)
+    html.push('<script src="https://www.google.com/recaptcha/api.js?render=' + state.recaptcha.site_key + '"></script>')
+  html.push('<div><select></select></div>')
   use_iframe = (typeof GM_loadUrl !== 'function')
+  if (use_iframe)
+    html.push('<div><iframe src="about:blank" width="100%" height="600" scrolling="no" frameborder="0" src="" allowFullScreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe></div>')
 
   unsafeWindow.document.close()
   unsafeWindow.document.open()
-  unsafeWindow.document.write('<div><select></select></div>')
-  if (use_iframe)
-    unsafeWindow.document.write('<div><iframe src="about:blank" width="100%" height="600" scrolling="no" frameborder="0" src="" allowFullScreen="true" webkitallowfullscreen="true" mozallowfullscreen="true"></iframe></div>')
+  unsafeWindow.document.write(html.join("\n"))
   unsafeWindow.document.close()
 
   $body   = unsafeWindow.document.body
@@ -119,26 +162,30 @@ var rewrite_dom = function() {
 
   $select.addEventListener('change', function(event){
     cancel_event(event)
-    var xhr_url
 
-    server_id     = $select.value
-    $select.value = ''
-    if (!server_id) return
+    refresh_recaptcha_token(function(token) {
+      var xhr_url
 
-    xhr_url = 'https://www.2embed.ru/ajax/embed/play?_token=&id=' + server_id
+      server_id     = $select.value
+      $select.value = ''
+      if (!server_id) return
 
-    download_json(xhr_url, null, function(data){
-      var video_host_url
+      xhr_url = 'https://www.2embed.ru/ajax/embed/play?id=' + server_id + '&_token=' + token
 
-      if (data && (typeof data === 'object') && data.link) {
-        video_host_url = data.link
+      download_json(xhr_url, null, function(data){
+        var video_host_url
 
-        if (use_iframe)
-          $iframe.setAttribute('src', video_host_url)
-        else
-          redirect_to_url(video_host_url)
-      }
+        if (data && (typeof data === 'object') && data.link) {
+          video_host_url = data.link
+
+          if (use_iframe)
+            $iframe.setAttribute('src', video_host_url)
+          else
+            redirect_to_url(video_host_url)
+        }
+      })
     })
+
   })
 }
 
@@ -165,10 +212,12 @@ var override_hooks = function() {
 }
 
 var init = function() {
+  scrape_dom()
   rewrite_dom()
   clear_all_timeouts()
   clear_all_intervals()
   override_hooks()
+  refresh_recaptcha_token()
 }
 
 unsafeWindow.setTimeout(

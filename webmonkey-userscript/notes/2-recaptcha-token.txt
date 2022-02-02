@@ -1,0 +1,99 @@
+--------------------------------------------------------------------------------
+
+https://www.2embed.ru/
+
+API URL query format:
+  https://www.2embed.ru/embed/imdb/movie?id=IMDB ID
+  https://www.2embed.ru/embed/imdb/tv?id=IMDB ID&s=SEASON NUMBER&e=EPISODE NUMBER
+
+--------------------------------------------------------------------------------
+
+https://www.imdb.com/title/tt4051832/
+  Lovesick
+
+https://www.2embed.ru/embed/imdb/tv?id=tt4051832&s=1&e=1
+
+found in DOM:
+=============
+  <div class="dropdown-menu dropdown-menu-model">
+      <a class="dropdown-item item-server" href="javascript:;" data-id="2496523">Server Vidcloud</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="7509214">Server Voe</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="6717505">Server Streamlare</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="1005264">Server Upstream</a>
+      <a class="dropdown-item item-server" href="javascript:;" data-id="2239892">Server Hydrax</a>
+  </div>
+  <script src="https://www.google.com/recaptcha/api.js?render=6LdBfTkbAAAAAL25IFRzcJzGj9Q-DKcrQCbVX__t"></script>
+
+--------------------------------------------------------------------------------
+
+https://www.2embed.ru/ajax/embed/play?id=2496523&_token=
+  {"status":false,"msg":"Bad request."}
+
+https://www.2embed.ru/ajax/embed/play?id=7509214&_token=
+  {"status":false,"msg":"Bad request."}
+
+https://www.2embed.ru/ajax/embed/play?id=6717505&_token=
+  {"status":false,"msg":"Bad request."}
+
+https://www.2embed.ru/ajax/embed/play?id=1005264&_token=
+  {"status":false,"msg":"Bad request."}
+
+https://www.2embed.ru/ajax/embed/play?id=2239892&_token=
+  {"status":false,"msg":"Bad request."}
+
+--------------------------------------------------------------------------------
+
+https://developers.google.com/recaptcha/docs/v3#programmatically_invoke_the_challenge
+
+1. Load the JavaScript API with your sitekey.
+     <script src="https://www.google.com/recaptcha/api.js?render=reCAPTCHA_site_key"></script>
+
+2. Call 'grecaptcha.execute' on each action you wish to protect.
+     <script>
+        function onClick(e) {
+          e.preventDefault();
+          grecaptcha.ready(function() {
+            grecaptcha.execute('reCAPTCHA_site_key', {action: 'submit'}).then(function(token) {
+                // Add your logic to submit to your backend server here.
+            });
+          });
+        }
+    </script>
+
+3. Send the token immediately to your backend with the request to verify.
+
+Note: reCAPTCHA tokens expire after two minutes.
+
+--------------------------------------------------------------------------------
+
+console script:
+===============
+{
+  const reCAPTCHA_site_key = '6LdBfTkbAAAAAL25IFRzcJzGj9Q-DKcrQCbVX__t'
+
+  grecaptcha.execute(reCAPTCHA_site_key, {action: 'submit'}).then(console.log)
+}
+
+output:
+=======
+// a very long string..
+
+--------------------------------------------------------------------------------
+
+console script:
+===============
+{
+  const reCAPTCHA_site_key = '6LdBfTkbAAAAAL25IFRzcJzGj9Q-DKcrQCbVX__t'
+
+  grecaptcha.execute(reCAPTCHA_site_key, {action: 'submit'}).then(token => {
+    const url = 'https://www.2embed.ru/ajax/embed/play?id=2496523&_token=' + token
+
+    fetch(url).then(result => result.text()).then(console.log)
+  })
+}
+
+output:
+=======
+{"type":"iframe","link":"https://rabbitstream.net/embed-5/oxyXeHJPA8AA?z=","sources":[],"tracks":[]}
+
+--------------------------------------------------------------------------------
