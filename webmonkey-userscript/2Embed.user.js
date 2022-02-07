@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.6
+// @version      1.0.7
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -20,7 +20,7 @@
 
 var constants = {
   debug:   true,
-  verbose: false,
+  verbose: 0,
   reload_on_recaptcha_error: false,
   dom_classes: {
     is_visible: 'show'
@@ -41,12 +41,44 @@ var state = {
   }
 }
 
+// ----------------------------------------------------------------------------- debug logger
+
+var debug = function(message, verbosity_level) {
+  if (!constants.debug) return
+  if (verbosity_level && (!constants.verbose || (verbosity_level > constants.verbose))) return
+
+  if (typeof GM_toastShort === 'function') {
+    if (Array.isArray(message))
+      message = message.join("\n\n")
+
+    GM_toastShort(message)
+  }
+  else {
+    if (Array.isArray(message)) {
+      for (var i=0; i < message.length; i++) {
+        unsafeWindow.alert(message[i])
+      }
+    }
+    else {
+      unsafeWindow.alert(message)
+    }
+  }
+}
+
 // ----------------------------------------------------------------------------- helpers
 
 // make GET request, pass plaintext response to callback
 var download_text = function(url, headers, callback) {
-  var xhr = new unsafeWindow.XMLHttpRequest()
-  xhr.open("GET", url, true, null, null)
+  var xhr
+
+  try {
+    xhr = new unsafeWindow.XMLHttpRequest()
+    xhr.open("GET", url, true, null, null)
+  }
+  catch(e) {
+    debug('XHR initialization error: bad URL')
+    return
+  }
 
   if (headers && (typeof headers === 'object')) {
     var keys = Object.keys(headers)
@@ -63,15 +95,17 @@ var download_text = function(url, headers, callback) {
       if (xhr.status === 200) {
         callback(xhr.responseText)
       }
-      else if (constants.debug) {
-        unsafeWindow.alert(xhr.status + ': ' + xhr.responseText)
-        unsafeWindow.alert(url)
+      else {
+        debug([xhr.status + ': ' + xhr.responseText, url])
       }
+    }
+    else {
+      debug('XHR state: ' + xhr.readyState, 3)
     }
   }
 
   xhr.onerror = function(e) {
-    if (constants.debug) unsafeWindow.alert('XHR error: ' + e.message)
+    debug('XHR error' + (e && (e instanceof Error)) ? ': ' + e.message : '')
   }
 
   xhr.send()
@@ -83,10 +117,7 @@ var download_json = function(url, headers, callback) {
       callback(JSON.parse(text))
     }
     catch(e) {
-      if (constants.debug) {
-        unsafeWindow.alert('JSON error: failed to parse XHR server response')
-        unsafeWindow.alert(text)
-      }
+      debug(['JSON error: failed to parse XHR server response', text])
     }
   })
 }
@@ -99,28 +130,73 @@ var cancel_event = function(event){
 
 // -----------------------------------------------------------------------------
 
+var remove_child_elements = function(el) {
+  if (!(el instanceof HTMLElement)) return
+
+  while (el.childNodes.length) {
+    el.removeChild(el.childNodes[0])
+  }
+}
+
+var make_element = function(elementName, content, isText) {
+  var el = unsafeWindow.document.createElement(elementName)
+
+  if (content) {
+    if (isText) {
+      el.appendChild(
+        unsafeWindow.document.createTextNode(content)
+      )
+    }
+    else {
+      el.innerHTML = content
+    }
+  }
+
+  return el
+}
+
+var add_style_element = function(css) {
+  if (!css) return
+
+  var head = unsafeWindow.document.getElementsByTagName('head')[0]
+  if (!head) return
+
+  if ('function' === (typeof css))
+    css = css()
+  if (Array.isArray(css))
+    css = css.join("\n")
+
+  head.appendChild(
+    make_element('style', css, true)
+  )
+}
+
+// -----------------------------------------------------------------------------
+
 var refresh_recaptcha_token = function(callback) {
   if (!state.recaptcha.site_key) {
-    if (constants.debug) unsafeWindow.alert('recaptcha site key is undefined')
+    debug('recaptcha site key is undefined')
     return
   }
   if (!unsafeWindow.grecaptcha) {
-    if (constants.debug) unsafeWindow.alert('recaptcha library is not yet loaded')
+    debug('recaptcha library is not yet loaded')
     return
   }
   if (typeof callback !== 'function') {
-    if (constants.debug) unsafeWindow.alert('recaptcha callback function is undefined')
+    debug('recaptcha callback function is undefined')
     return
   }
 
   unsafeWindow.grecaptcha.execute(state.recaptcha.site_key, {action: 'submit'})
   .then(function(token) {
+    token = token ? token.toString().trim() : null
+
     if (!token) {
-      if (constants.debug) unsafeWindow.alert('recaptcha token is undefined')
+      debug('recaptcha token is undefined')
       return
     }
 
-    if (constants.debug && constants.verbose) unsafeWindow.alert('token: ' + token)
+    debug('token: ' + token, 2)
 
     callback(token)
   })
@@ -130,7 +206,7 @@ var refresh_recaptcha_token = function(callback) {
       return
     }
 
-    if (constants.debug) unsafeWindow.alert(e.toString())
+    debug(['failed to obtain recaptcha token', (e ? ((e instanceof Error) ? e.message : e.toString()) : '')])
   })
 }
 
@@ -174,55 +250,45 @@ var scrape_dom = function() {
 
 // ----------------------------------------------------------------------------- rewrite page content
 
-var make_option = function(server) {
-  var $option
-  $option = unsafeWindow.document.createElement('option')
-  $option.setAttribute('value', server.id)
-  $option.appendChild(
-    unsafeWindow.document.createTextNode(server.name)
-  )
-  return $option
-}
-
 var rewrite_dom = function() {
-  var html, use_iframe
-  var $body, $div, $select, $iframe
+  remove_child_elements(unsafeWindow.document.body)
+  remove_child_elements(unsafeWindow.document.getElementsByTagName('head')[0])
 
-  unsafeWindow.document.close()
-  unsafeWindow.document.open()
+  unsafeWindow.grecaptcha = undefined
 
-  html = []
-  html.push('<html>')
-  html.push('<head>')
-  html.push('  <style>')
-  html.push('    body > * {display: none !important}')
-  html.push('    body > .' + constants.dom_classes.is_visible + ' {display: block !important}')
-  html.push('  </style>')
-  html.push('</head>')
-  html.push('<body data-recaptcha-key="' + state.recaptcha.site_key + '">')
+  add_style_element([
+    'body > * {display: none !important}',
+    'body > .' + constants.dom_classes.is_visible + ' {display: block !important}'
+  ])
 
-  if (unsafeWindow.grecaptcha === undefined)
-    html.push('<script class="' + constants.dom_classes.is_visible + '" src="https://www.google.com/recaptcha/api.js?render=' + state.recaptcha.site_key + '"></script>')
-
-  html.push('</body>')
-  html.push('</html>')
-
-  unsafeWindow.document.write(html.join("\n"))
-  unsafeWindow.document.close()
+  var use_iframe
+  var $body, $script, $div, $select, $iframe
 
   $body = unsafeWindow.document.body
-  if (!$body) return
 
-  $div    = unsafeWindow.document.createElement('div')
-  $select = unsafeWindow.document.createElement('select')
+  if (unsafeWindow.grecaptcha === undefined) {
+    $script = make_element('script')
+    $script.setAttribute('src', 'https://www.google.com/recaptcha/api.js?render=' + state.recaptcha.site_key)
+    $script.addEventListener('load', function() {
+      unsafeWindow.grecaptcha.ready(recaptcha_ready.bind(null, false))
+    })
+    $script.className = constants.dom_classes.is_visible
+    $body.appendChild($script)
+  }
+  else {
+    unsafeWindow.grecaptcha.ready(recaptcha_ready.bind(null, true))
+  }
+
+  $div    = make_element('div')
+  $select = make_element('select')
   $div.appendChild($select)
   $div.className = constants.dom_classes.is_visible
   $body.appendChild($div)
 
   use_iframe = (typeof GM_loadUrl !== 'function')
   if (use_iframe) {
-    $div    = unsafeWindow.document.createElement('div')
-    $iframe = unsafeWindow.document.createElement('iframe')
+    $div    = make_element('div')
+    $iframe = make_element('iframe')
     $iframe.setAttribute('src', 'about:blank')
     $iframe.setAttribute('width', '100%')
     $iframe.setAttribute('height', '600')
@@ -245,7 +311,7 @@ var rewrite_dom = function() {
     cancel_event(event)
 
     var server_id = $select.options[$select.selectedIndex].value
-    if (constants.debug && constants.verbose) unsafeWindow.alert('server ID: ' + server_id)
+    debug('server ID: ' + server_id, 3)
 
     $select.selectedIndex = 0
     if (!server_id) return
@@ -253,13 +319,14 @@ var rewrite_dom = function() {
     refresh_recaptcha_token(function(token) {
       var xhr_url = 'https://www.2embed.ru/ajax/embed/play?id=' + encodeURIComponent(server_id) + '&_token=' + encodeURIComponent(token)
 
-      if (constants.debug && constants.verbose) unsafeWindow.alert('XHR URL: ' + xhr_url)
+      debug('XHR URL: ' + xhr_url, 1)
 
       download_json(xhr_url, null, function(data){
         var video_host_url
 
         if (data && (typeof data === 'object') && data.link) {
           video_host_url = data.link
+          debug('video URL: ' + video_host_url, 1)
 
           if (use_iframe)
             $iframe.setAttribute('src', video_host_url)
@@ -267,14 +334,42 @@ var rewrite_dom = function() {
             redirect_to_url(video_host_url)
         }
         else {
-          if (constants.debug) {
-            unsafeWindow.alert('XHR response has an unexpected JSON data structure')
-            unsafeWindow.alert(JSON.stringify(data, null, 2))
-          }
+          debug(['XHR response has an unexpected JSON data structure', JSON.stringify(data, null, 2)])
         }
       })
     })
   })
+}
+
+var recaptcha_ready = function(perform_reset) {
+  var $body, $div
+
+  if (perform_reset === true) {
+    try {
+      unsafeWindow.grecaptcha.reset(state.recaptcha.site_key)
+    }
+    catch(e) {}
+  }
+  else {
+    $body = unsafeWindow.document.body
+    $div  = make_element('div')
+    $body.appendChild($div)
+
+    try {
+      unsafeWindow.grecaptcha.render($div, {sitekey: state.recaptcha.site_key})
+    }
+    catch(e) {}
+  }
+}
+
+var make_option = function(server) {
+  var $option
+  $option = make_element('option')
+  $option.setAttribute('value', server.id)
+  $option.appendChild(
+    unsafeWindow.document.createTextNode(server.name)
+  )
+  return $option
 }
 
 // ----------------------------------------------------------------------------- bootstrap
@@ -307,7 +402,7 @@ var init = function() {
   if (state.did.init) return
   state.did.init = true
 
-  if (constants.debug && constants.verbose) unsafeWindow.alert('initializing..')
+  debug('initializing..', 3)
 
   scrape_dom()
   if (!state.recaptcha.site_key || !state.servers.length) return
