@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.7
+// @version      1.0.8
 // @match        *://2embed.ru/*
 // @match        *://*.2embed.ru/*
 // @icon         https://www.2embed.ru/images/favicon.png
@@ -21,6 +21,7 @@
 var constants = {
   debug:   true,
   verbose: 0,
+  reinitialize_document: true,
   reload_on_recaptcha_error: false,
   dom_classes: {
     is_visible: 'show'
@@ -251,8 +252,16 @@ var scrape_dom = function() {
 // ----------------------------------------------------------------------------- rewrite page content
 
 var rewrite_dom = function() {
-  remove_child_elements(unsafeWindow.document.body)
-  remove_child_elements(unsafeWindow.document.getElementsByTagName('head')[0])
+  if (constants.reinitialize_document) {
+    unsafeWindow.document.close()
+    unsafeWindow.document.open()
+    unsafeWindow.document.write('')
+    unsafeWindow.document.close()
+  }
+  else {
+    remove_child_elements(unsafeWindow.document.body)
+    remove_child_elements(unsafeWindow.document.getElementsByTagName('head')[0])
+  }
 
   unsafeWindow.grecaptcha = undefined
 
