@@ -1,9 +1,8 @@
 // ==UserScript==
 // @name         2Embed
 // @description  For specific video server hosts, open iframe in top window.
-// @version      1.0.8
-// @match        *://2embed.ru/*
-// @match        *://*.2embed.ru/*
+// @version      1.0.9
+// @include      /^https?:\/\/(?:[^\.\/]*\.)*(?:2embed\.(?:ru|to))\/.*$/
 // @icon         https://www.2embed.ru/images/favicon.png
 // @run-at       document-end
 // @grant        unsafeWindow
@@ -121,6 +120,21 @@ var download_json = function(url, headers, callback) {
       debug(['JSON error: failed to parse XHR server response', text])
     }
   })
+}
+
+// -----------------------------------------------------------------------------
+
+var resolve_url = function(url) {
+  if (url.substring(0, 4).toLowerCase() === 'http')
+    return url
+
+  if (url.substring(0, 2) === '//')
+    return unsafeWindow.location.protocol + url
+
+  if (url.substring(0, 1) === '/')
+    return unsafeWindow.location.protocol + '//' + unsafeWindow.location.host + url
+
+  return unsafeWindow.location.protocol + '//' + unsafeWindow.location.host + unsafeWindow.location.pathname.replace(/[^\/]+$/, '') + url
 }
 
 // -----------------------------------------------------------------------------
@@ -326,7 +340,7 @@ var rewrite_dom = function() {
     if (!server_id) return
 
     refresh_recaptcha_token(function(token) {
-      var xhr_url = 'https://www.2embed.ru/ajax/embed/play?id=' + encodeURIComponent(server_id) + '&_token=' + encodeURIComponent(token)
+      var xhr_url = resolve_url('/ajax/embed/play?id=') + encodeURIComponent(server_id) + '&_token=' + encodeURIComponent(token)
 
       debug('XHR URL: ' + xhr_url, 1)
 
